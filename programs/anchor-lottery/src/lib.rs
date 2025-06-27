@@ -18,6 +18,10 @@ pub mod anchor_lottery {
         ctx.accounts.token_lottery.total_tickets = 0;
         Ok(())
     }
+
+    pub fn initialize_lottery(ctx: Context<InitializeLottery>, winner:u64) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -36,6 +40,15 @@ pub struct Initialize<'info> {
     pub token_lottery: Account<'info, TokenLottery>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeLottery<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    pub sysyem_program: Program<'info, System>,
+
 }
 
 #[account]
