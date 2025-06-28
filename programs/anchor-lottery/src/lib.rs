@@ -1,10 +1,23 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, metadata::Metadata, token_interface::{Mint, TokenAccount, TokenInterface}};
+use anchor_spl::{associated_token::AssociatedToken, metadata::Metadata, token_interface::{mint_to,MintTo,Mint, TokenAccount, TokenInterface}};
 
 declare_id!("EuXtguR5S8nPqBMZNg3qMMCVjN53u4obRbwQL5zzB8xQ");
 
+#[constant]
+pub const NAME: &str = "Token Lottery ticket";
+
+#[constant]
+pub const SYMBOL: &str = "TLT";
+
+#[constant]
+pub const URL: &str = "https://media.istockphoto.com/id/1500283713/vector/cinema-ticket-on-white-background-movie-ticket-on-white-background.jpg?s=612x612&w=0&k=20&c=4J15lHFXyjEs6xBoagcZqq5GYHKk5sMwCJRP8pNM3Zg=";
+
+
 #[program]
 pub mod anchor_lottery {
+
+    use anchor_spl::metadata::{create_metadata_accounts_v3, mpl_token_metadata::types::{CollectionDetails, Creator, DataV2}, CreateMetadataAccountsV3};
+
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, start:u64, end:u64, price:u64) -> Result<()> {
@@ -21,8 +34,57 @@ pub mod anchor_lottery {
     }
 
     pub fn initialize_lottery(ctx: Context<InitializeLottery>, winner:u64) -> Result<()> {
+        let signer_seeds: &[&[&[u8]]] = &[&[b"collection_mint".as_ref(), &[ctx.bumps.collection_mint]]];
+
+        msg!("creating mint account");
+        mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.collection_mint.to_account_info(),
+                    to: ctx.accounts.collection_token_account.to_account_info(),
+                    authority: ctx.accounts.collection_mint.to_account_info(),
+                },
+                signer_seeds
+            ),
+            1, 
+        )?;
+
+        msg!("creating metadata account");
+
+        create_metadata_accounts_v3(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_metadata_program.to_account_info(),
+                CreateMetadataAccountsV3 {
+                    metadata: ctx.accounts.metadata.to_account_info(),
+                    mint: ctx.accounts.collection_mint.to_account_info(),
+                    mint_authority: ctx.accounts.collection_mint.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    update_authority: ctx.accounts.collection_mint.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            DataV2 {
+                name: NAME.to_string(),
+                symbol: SYMBOL.to_string(),
+                uri: URL.to_string(),
+                seller_fee_basis_points: 0,
+                creators: Some(vec![Creator {
+                    address: ctx.accounts.collection_mint.key(),
+                    verified: false,
+                    share: 100,
+                }]),
+                collection: None,
+                uses: None,
+            },
+            true,
+            true,
+            Some(CollectionDetails::V1 { size: 0 }),
+        )?;
         Ok(())
-    }
+    }   
 }
 
 #[derive(Accounts)]
@@ -48,7 +110,6 @@ pub struct InitializeLottery<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-
     #[account(
         init,
         payer = payer,
@@ -59,7 +120,6 @@ pub struct InitializeLottery<'info> {
         bump
     )]
     pub collection_mint: InterfaceAccount<'info, Mint>,
-
 
     #[account(
         init,
@@ -82,8 +142,8 @@ pub struct InitializeLottery<'info> {
 
     #[account(
         mut,
-            seeds = [b"metadata", 
-                token_metadata_program.key().as_ref(), 
+            seeds = [b"metadata",
+                token_metadata_program.key().as_ref(),
                 collection_mint.key().as_ref(),
                 b"edition"
             ],
@@ -97,8 +157,7 @@ pub struct InitializeLottery<'info> {
     pub associate_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info,TokenInterface>,
     pub system_program: Program<'info, System>,
-
-
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[account]
@@ -115,4 +174,3 @@ pub struct TokenLottery {
     pub authority: Pubkey,
     pub randomness_account: Pubkey,
 }
-
