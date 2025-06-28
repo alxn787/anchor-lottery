@@ -16,7 +16,7 @@ pub const URL: &str = "https://media.istockphoto.com/id/1500283713/vector/cinema
 #[program]
 pub mod anchor_lottery {
 
-    use anchor_spl::metadata::{create_metadata_accounts_v3, mpl_token_metadata::types::{CollectionDetails, Creator, DataV2}, CreateMetadataAccountsV3};
+    use anchor_spl::metadata::{create_master_edition_v3, create_metadata_accounts_v3, mpl_token_metadata::types::{CollectionDetails, Creator, DataV2}, sign_metadata, CreateMasterEditionV3, CreateMetadataAccountsV3, SignMetadata};
 
     use super::*;
 
@@ -33,7 +33,7 @@ pub mod anchor_lottery {
         Ok(())
     }
 
-    pub fn initialize_lottery(ctx: Context<InitializeLottery>, winner:u64) -> Result<()> {
+    pub fn initialize_lottery(ctx: Context<InitializeLottery>) -> Result<()> {
         let signer_seeds: &[&[&[u8]]] = &[&[b"collection_mint".as_ref(), &[ctx.bumps.collection_mint]]];
 
         msg!("creating mint account");
@@ -83,6 +83,40 @@ pub mod anchor_lottery {
             true,
             Some(CollectionDetails::V1 { size: 0 }),
         )?;
+
+
+        msg!("Creating Master edition accounts");
+        create_master_edition_v3(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_metadata_program.to_account_info(),
+                CreateMasterEditionV3 {
+                    payer: ctx.accounts.payer.to_account_info(),
+                    mint: ctx.accounts.collection_mint.to_account_info(),
+                    edition: ctx.accounts.master_edition.to_account_info(),
+                    mint_authority: ctx.accounts.collection_mint.to_account_info(),
+                    update_authority: ctx.accounts.collection_mint.to_account_info(),
+                    metadata: ctx.accounts.metadata.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+                &signer_seeds,
+            ),
+            Some(0),
+        )?;
+
+        msg!("verifying collection");
+        sign_metadata(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_metadata_program.to_account_info(),
+                SignMetadata {
+                    creator: ctx.accounts.collection_mint.to_account_info(),
+                    metadata: ctx.accounts.metadata.to_account_info(),
+                },
+                signer_seeds,
+            )
+        )?;
+
         Ok(())
     }   
 }
