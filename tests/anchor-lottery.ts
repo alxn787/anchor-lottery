@@ -48,5 +48,8 @@ describe("anchor-lottery", () => {
 
     console.log("Your transaction signature", initLotterySignature);
   });
+  it("should init lottery!", async () => {
+
+  })
 });
 102004982653
